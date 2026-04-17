@@ -1,0 +1,93 @@
+// プロフィール帳アプリ DB スキーマ
+// 本番は provider を "postgresql" に変更
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model FormConfig {
+  id            String   @id @default(cuid())
+  spreadsheetId String
+  sheetName     String   @default("フォームの回答 1")
+  fieldMappings Json
+  webhookSecret String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rawResponses RawResponse[]
+  importLogs   ImportLog[]
+}
+
+model RawResponse {
+  id             String   @id @default(cuid())
+  formConfigId   String
+  responseData   Json
+  submittedAt    DateTime
+  respondentId   String   @unique
+  createdAt      DateTime @default(now())
+
+  formConfig FormConfig @relation(fields: [formConfigId], references: [id], onDelete: Cascade)
+  profile    Profile?
+}
+
+model Profile {
+  id            String   @id @default(cuid())
+  rawResponseId String   @unique
+  displayName   String
+  subtitle      String?
+  avatarColor   String   @default("#FF9AA2")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rawResponse RawResponse    @relation(fields: [rawResponseId], references: [id], onDelete: Cascade)
+  fields      ProfileField[]
+
+  @@index([createdAt])
+  @@index([displayName])
+}
+
+model ProfileField {
+  id           String   @id @default(cuid())
+  profileId    String
+  fieldKey     String
+  label        String
+  emoji        String   @default("")
+  value        String
+  displayOrder Int
+  isRequired   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, displayOrder])
+}
+
+model ImportLog {
+  id           String   @id @default(cuid())
+  formConfigId String
+  importedAt   DateTime @default(now())
+  recordCount  Int
+  skippedCount Int      @default(0)
+  status       String   @default("success")
+  trigger      String   @default("manual")
+  errorMessage String?
+
+  formConfig FormConfig @relation(fields: [formConfigId], references: [id], onDelete: Cascade)
+
+  @@index([importedAt])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  role      String   @default("viewer")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
