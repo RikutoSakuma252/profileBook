@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfileBook } from "./ProfileBook";
+import { AdminDeleteButton } from "./AdminDeleteButton";
 import type { ProfileFieldDto } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +14,8 @@ export default async function ProfileDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const session = await auth();
+  const isAdmin = session?.user?.role === "admin";
 
   const profile = await prisma.profile.findUnique({
     where: { id },
@@ -47,16 +51,21 @@ export default async function ProfileDetailPage({
 
   return (
     <main className="relative mx-auto max-w-4xl px-6 pt-10 pb-24">
-      <div className="mb-6 flex items-center justify-between font-typewriter text-[11px] uppercase tracking-[0.3em]">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 font-typewriter text-[11px] uppercase tracking-[0.3em]">
         <Link
           href="/profiles"
           className="text-paper/60 transition-colors hover:text-neon"
         >
           ← Back to directory
         </Link>
-        <span className="text-paper/30">
-          File No. {profile.id.slice(-6).toUpperCase()}
-        </span>
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <AdminDeleteButton id={profile.id} displayName={profile.displayName} />
+          )}
+          <span className="text-paper/30">
+            File No. {profile.id.slice(-6).toUpperCase()}
+          </span>
+        </div>
       </div>
 
       <ProfileBook

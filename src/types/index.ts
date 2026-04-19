@@ -52,4 +52,14 @@ export interface ImportResult {
   errors: string[];
 }
 
+export interface FormConfigDto {
+  id: string;
+  spreadsheetId: string;
+  sheetName: string;
+  fieldMappings: FieldMapping[];
+  webhookSecret: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type UserRole = "admin" | "viewer";
