@@ -3,17 +3,111 @@
 @tailwind utilities;
 
 :root {
-  --background: #FFFDF7;
-  --foreground: #5D5D5D;
+  --background: #0B1026;
+  --foreground: #F3EAD3;
+  --paper: #F3EAD3;
+  --ink: #0B1026;
+  --neon: #FFE14D;
+  --rose: #C97B84;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
+  background-image:
+    radial-gradient(ellipse 80% 60% at 18% 0%, rgba(201, 123, 132, 0.18), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 82% 100%, rgba(255, 225, 77, 0.12), transparent 60%),
+    linear-gradient(180deg, #0B1026 0%, #070A1C 100%);
+  background-attachment: fixed;
+}
+
+/* film grain overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.8 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* horizontal scanline faint */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.015) 0px,
+    rgba(255, 255, 255, 0.015) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: overlay;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .paper-grain {
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(185, 148, 87, 0.18), transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(130, 95, 50, 0.12), transparent 45%),
+      repeating-linear-gradient(45deg, rgba(120, 90, 40, 0.04) 0 2px, transparent 2px 6px);
+    background-color: var(--paper);
+  }
+  .tape {
+    position: absolute;
+    width: 110px;
+    height: 28px;
+    background: rgba(255, 240, 180, 0.5);
+    border-left: 1px dashed rgba(120, 90, 40, 0.4);
+    border-right: 1px dashed rgba(120, 90, 40, 0.4);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(2px);
+  }
+  .stamp-rouge {
+    color: #B3302A;
+    border: 3px double currentColor;
+    font-family: var(--font-dot), monospace;
+    letter-spacing: 0.1em;
+    padding: 0.25rem 0.6rem;
+    transform: rotate(-8deg);
+    opacity: 0.85;
+    text-transform: uppercase;
+  }
+  .dotted-divider {
+    background-image: radial-gradient(circle, currentColor 1px, transparent 1.2px);
+    background-size: 8px 8px;
+    background-repeat: repeat-x;
+    background-position: 0 center;
+    height: 8px;
+  }
+  .frequency-bar {
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(255, 225, 77, 0.9) 0 1px,
+      transparent 1px 6px
+    );
+  }
+  .frequency-bar-strong {
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(243, 234, 211, 0.9) 0 2px,
+      transparent 2px 10px
+    );
+  }
+  .content-above-noise {
+    position: relative;
+    z-index: 2;
   }
 }
