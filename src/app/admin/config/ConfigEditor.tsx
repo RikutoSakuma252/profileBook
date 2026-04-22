@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import { saveConfigAction, type SaveConfigState } from "./actions";
 import type { FieldMapping, FormConfigDto } from "@/types";
 
 interface Props {
@@ -9,7 +9,6 @@ interface Props {
 }
 
 export function ConfigEditor({ initialConfigs }: Props) {
-  const router = useRouter();
   const [configs, setConfigs] = useState(initialConfigs);
   const [activeId, setActiveId] = useState(initialConfigs[0]?.id ?? "");
   const [creating, setCreating] = useState(initialConfigs.length === 0);
@@ -22,11 +21,12 @@ export function ConfigEditor({ initialConfigs }: Props) {
   const handleSaved = (saved: FormConfigDto) => {
     setConfigs((prev) => {
       const exists = prev.some((p) => p.id === saved.id);
-      return exists ? prev.map((p) => (p.id === saved.id ? saved : p)) : [...prev, saved];
+      return exists
+        ? prev.map((p) => (p.id === saved.id ? saved : p))
+        : [...prev, saved];
     });
     setActiveId(saved.id);
     setCreating(false);
-    router.refresh();
   };
 
   return (
@@ -76,8 +76,13 @@ export function ConfigEditor({ initialConfigs }: Props) {
           mode="create"
           initial={emptyConfig()}
           onSaved={handleSaved}
-          onCancel={() =>
-            configs.length > 0 ? (setCreating(false), setActiveId(configs[0].id)) : null
+          onCancel={
+            configs.length > 0
+              ? () => {
+                  setCreating(false);
+                  setActiveId(configs[0].id);
+                }
+              : undefined
           }
         />
       ) : active ? (
@@ -114,6 +119,8 @@ interface FormState {
   mappings: FieldMapping[];
 }
 
+const initialState: SaveConfigState = { status: "idle" };
+
 function EditorForm({
   mode,
   initial,
@@ -125,29 +132,41 @@ function EditorForm({
   onSaved: (c: FormConfigDto) => void;
   onCancel?: () => void;
 }) {
-  const [state, setState] = useState<FormState>({
-    spreadsheetId: initial.spreadsheetId === "PLACEHOLDER_SPREADSHEET_ID" ? "" : initial.spreadsheetId,
+  const [state, runAction, isPending] = useActionState(
+    saveConfigAction,
+    initialState
+  );
+
+  const [form, setForm] = useState<FormState>({
+    spreadsheetId:
+      initial.spreadsheetId === "PLACEHOLDER_SPREADSHEET_ID"
+        ? ""
+        : initial.spreadsheetId,
     sheetName: initial.sheetName,
-    mappings: initial.fieldMappings.length > 0
-      ? initial.fieldMappings.map((m) => ({ ...m }))
-      : [],
+    mappings:
+      initial.fieldMappings.length > 0
+        ? initial.fieldMappings.map((m) => ({ ...m }))
+        : [],
   });
   const [secret, setSecret] = useState(initial.webhookSecret);
   const [showSecret, setShowSecret] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (state.status === "success") {
+      setSecret(state.config.webhookSecret);
+      onSaved(state.config);
+    }
+  }, [state, onSaved]);
 
   const updateMapping = (i: number, patch: Partial<FieldMapping>) => {
-    setState((s) => ({
+    setForm((s) => ({
       ...s,
       mappings: s.mappings.map((m, idx) => (idx === i ? { ...m, ...patch } : m)),
     }));
   };
 
   const addMapping = () => {
-    setState((s) => ({
+    setForm((s) => ({
       ...s,
       mappings: [
         ...s.mappings,
@@ -164,14 +183,14 @@ function EditorForm({
   };
 
   const removeMapping = (i: number) => {
-    setState((s) => ({
+    setForm((s) => ({
       ...s,
       mappings: s.mappings.filter((_, idx) => idx !== i),
     }));
   };
 
   const setDisplayName = (i: number) => {
-    setState((s) => ({
+    setForm((s) => ({
       ...s,
       mappings: s.mappings.map((m, idx) => ({
         ...m,
@@ -181,7 +200,7 @@ function EditorForm({
   };
 
   const setSubtitle = (i: number) => {
-    setState((s) => ({
+    setForm((s) => ({
       ...s,
       mappings: s.mappings.map((m, idx) => ({
         ...m,
@@ -190,38 +209,14 @@ function EditorForm({
     }));
   };
 
-  const save = async (regenerateSecret = false) => {
-    setSaving(true);
-    setError(null);
-    setOk(null);
-    try {
-      const payload = {
-        spreadsheetId: state.spreadsheetId.trim(),
-        sheetName: state.sheetName.trim(),
-        fieldMappings: state.mappings,
-        ...(regenerateSecret ? { regenerateSecret: true } : {}),
-      };
-      const url = mode === "create" ? "/api/admin/form-configs" : `/api/admin/form-configs/${initial.id}`;
-      const method = mode === "create" ? "POST" : "PUT";
-      const res = await fetch(url, {
-        method,
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? "save failed");
-        return;
-      }
-      const saved = json.config as FormConfigDto;
-      setSecret(saved.webhookSecret);
-      setOk(mode === "create" ? "作成しました" : "保存しました");
-      startTransition(() => onSaved(saved));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
+  const save = (regenerateSecret = false) => {
+    runAction({
+      id: mode === "edit" ? initial.id : null,
+      spreadsheetId: form.spreadsheetId.trim(),
+      sheetName: form.sheetName.trim(),
+      fieldMappings: form.mappings,
+      regenerateSecret,
+    });
   };
 
   return (
@@ -229,16 +224,20 @@ function EditorForm({
       <section className="grid gap-4 rounded-sm border border-paper/10 bg-ink-soft/30 p-5 md:grid-cols-2">
         <Field label="Spreadsheet ID">
           <input
-            value={state.spreadsheetId}
-            onChange={(e) => setState((s) => ({ ...s, spreadsheetId: e.target.value }))}
+            value={form.spreadsheetId}
+            onChange={(e) =>
+              setForm((s) => ({ ...s, spreadsheetId: e.target.value }))
+            }
             placeholder="1AbCdE…"
             className="mt-2 w-full rounded-sm border border-paper/15 bg-ink px-3 py-2 font-typewriter text-sm text-paper focus:border-neon focus:outline-none"
           />
         </Field>
         <Field label="シート名">
           <input
-            value={state.sheetName}
-            onChange={(e) => setState((s) => ({ ...s, sheetName: e.target.value }))}
+            value={form.sheetName}
+            onChange={(e) =>
+              setForm((s) => ({ ...s, sheetName: e.target.value }))
+            }
             className="mt-2 w-full rounded-sm border border-paper/15 bg-ink px-3 py-2 font-typewriter text-sm text-paper focus:border-neon focus:outline-none"
           />
         </Field>
@@ -258,7 +257,7 @@ function EditorForm({
           </button>
         </header>
 
-        {state.mappings.length === 0 ? (
+        {form.mappings.length === 0 ? (
           <div className="rounded-sm border border-dashed border-paper/15 bg-ink-soft/30 p-6 text-center font-handwritten text-paper/60">
             マッピングがありません。「+ 行を追加」から登録してください。
           </div>
@@ -279,33 +278,41 @@ function EditorForm({
                 </tr>
               </thead>
               <tbody className="divide-y divide-paper/10 bg-ink-soft/20">
-                {state.mappings.map((m, i) => (
+                {form.mappings.map((m, i) => (
                   <tr key={i}>
                     <td className="p-1">
                       <input
                         value={m.columnHeader}
-                        onChange={(e) => updateMapping(i, { columnHeader: e.target.value })}
+                        onChange={(e) =>
+                          updateMapping(i, { columnHeader: e.target.value })
+                        }
                         className="w-44 rounded-sm border border-paper/10 bg-ink px-2 py-1 text-paper focus:border-neon focus:outline-none"
                       />
                     </td>
                     <td className="p-1">
                       <input
                         value={m.fieldKey}
-                        onChange={(e) => updateMapping(i, { fieldKey: e.target.value })}
+                        onChange={(e) =>
+                          updateMapping(i, { fieldKey: e.target.value })
+                        }
                         className="w-28 rounded-sm border border-paper/10 bg-ink px-2 py-1 text-paper focus:border-neon focus:outline-none"
                       />
                     </td>
                     <td className="p-1">
                       <input
                         value={m.label}
-                        onChange={(e) => updateMapping(i, { label: e.target.value })}
+                        onChange={(e) =>
+                          updateMapping(i, { label: e.target.value })
+                        }
                         className="w-32 rounded-sm border border-paper/10 bg-ink px-2 py-1 text-paper focus:border-neon focus:outline-none"
                       />
                     </td>
                     <td className="p-1">
                       <input
                         value={m.emoji}
-                        onChange={(e) => updateMapping(i, { emoji: e.target.value })}
+                        onChange={(e) =>
+                          updateMapping(i, { emoji: e.target.value })
+                        }
                         className="w-14 rounded-sm border border-paper/10 bg-ink px-2 py-1 text-center text-paper focus:border-neon focus:outline-none"
                       />
                     </td>
@@ -313,7 +320,11 @@ function EditorForm({
                       <input
                         type="number"
                         value={m.displayOrder}
-                        onChange={(e) => updateMapping(i, { displayOrder: Number(e.target.value) })}
+                        onChange={(e) =>
+                          updateMapping(i, {
+                            displayOrder: Number(e.target.value),
+                          })
+                        }
                         className="w-16 rounded-sm border border-paper/10 bg-ink px-2 py-1 text-paper focus:border-neon focus:outline-none"
                       />
                     </td>
@@ -321,7 +332,9 @@ function EditorForm({
                       <input
                         type="checkbox"
                         checked={m.isRequired}
-                        onChange={(e) => updateMapping(i, { isRequired: e.target.checked })}
+                        onChange={(e) =>
+                          updateMapping(i, { isRequired: e.target.checked })
+                        }
                       />
                     </td>
                     <td className="p-1 text-center">
@@ -357,7 +370,7 @@ function EditorForm({
         )}
       </section>
 
-      {mode === "edit" && (
+      {mode === "edit" ? (
         <section className="rounded-sm border border-paper/10 bg-ink-soft/30 p-5">
           <h2 className="font-dot text-base tracking-[0.1em] text-paper">
             Webhook Secret
@@ -379,17 +392,17 @@ function EditorForm({
             <button
               type="button"
               onClick={() => save(true)}
-              disabled={saving}
+              disabled={isPending}
               className="rounded-sm border border-rose/60 px-3 py-2 font-typewriter text-[11px] uppercase tracking-[0.25em] text-rose transition-colors hover:bg-rose hover:text-ink disabled:opacity-40"
             >
               regenerate
             </button>
           </div>
         </section>
-      )}
+      ) : null}
 
       <div className="flex items-center justify-end gap-3">
-        {onCancel && (
+        {onCancel ? (
           <button
             type="button"
             onClick={onCancel}
@@ -397,32 +410,38 @@ function EditorForm({
           >
             Cancel
           </button>
-        )}
+        ) : null}
         <button
           type="button"
           onClick={() => save(false)}
-          disabled={saving}
+          disabled={isPending}
           className="rounded-sm bg-neon px-5 py-2 font-dot text-sm tracking-[0.2em] text-ink shadow-neon transition-opacity disabled:opacity-40"
         >
-          {saving ? "保存中…" : mode === "create" ? "作成する" : "保存する"}
+          {isPending ? "保存中…" : mode === "create" ? "作成する" : "保存する"}
         </button>
       </div>
 
-      {ok && (
+      {state.status === "success" ? (
         <div className="rounded-sm border border-neon/40 bg-neon/5 px-4 py-2 font-typewriter text-sm text-neon">
-          {ok}
+          {state.mode === "create" ? "作成しました" : "保存しました"}
         </div>
-      )}
-      {error && (
+      ) : null}
+      {state.status === "error" ? (
         <div className="rounded-sm border border-rouge/60 bg-rouge/10 px-4 py-2 font-typewriter text-sm text-rose">
-          {error}
+          {state.message}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span className="font-typewriter text-[11px] uppercase tracking-[0.25em] text-paper/60">

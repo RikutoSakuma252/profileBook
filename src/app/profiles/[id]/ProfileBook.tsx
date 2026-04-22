@@ -1,8 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { memo, useCallback, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import type { ProfileFieldDto } from "@/types";
+
+const FieldReveal = dynamic(() => import("./FieldReveal"), {
+  ssr: false,
+  loading: () => (
+    <span className="inline-flex items-center gap-2 rounded-sm bg-ink/90 px-2.5 py-1 font-dot text-[11px] tracking-[0.3em] text-paper">
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-neon animate-blink" />
+      LOCKED · tap to reveal
+    </span>
+  ),
+});
 
 interface Props {
   displayName: string;
@@ -19,23 +29,23 @@ export function ProfileBook({
   createdAt,
   fields,
 }: Props) {
-  const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const [revealed, setRevealed] = useState<Set<string>>(() => new Set());
 
   const allIds = useMemo(() => fields.map((f) => f.id), [fields]);
   const allOpen = revealed.size === allIds.length && allIds.length > 0;
   const recDate = createdAt.slice(0, 10);
 
-  const toggle = (id: string) => {
+  const toggle = useCallback((id: string) => {
     setRevealed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
-  const openAll = () => setRevealed(new Set(allIds));
-  const closeAll = () => setRevealed(new Set());
+  const openAll = useCallback(() => setRevealed(new Set(allIds)), [allIds]);
+  const closeAll = useCallback(() => setRevealed(new Set()), []);
 
   return (
     <article className="relative">
@@ -60,11 +70,11 @@ export function ProfileBook({
               <h1 className="mt-1 font-dot text-3xl tracking-[0.05em] text-ink md:text-4xl">
                 {displayName}
               </h1>
-              {subtitle && (
+              {subtitle ? (
                 <p className="mt-1 font-handwritten text-lg text-ink/70">
                   {subtitle}
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -105,7 +115,7 @@ export function ProfileBook({
                 field={f}
                 index={i}
                 revealed={revealed.has(f.id)}
-                onToggle={() => toggle(f.id)}
+                onToggle={toggle}
               />
             ))}
           </ul>
@@ -120,7 +130,7 @@ export function ProfileBook({
   );
 }
 
-function FieldRow({
+const FieldRow = memo(function FieldRow({
   field,
   index,
   revealed,
@@ -129,13 +139,15 @@ function FieldRow({
   field: ProfileFieldDto;
   index: number;
   revealed: boolean;
-  onToggle: () => void;
+  onToggle: (id: string) => void;
 }) {
+  const handleClick = useCallback(() => onToggle(field.id), [onToggle, field.id]);
+
   return (
     <li>
       <button
         type="button"
-        onClick={onToggle}
+        onClick={handleClick}
         aria-expanded={revealed}
         className="group flex w-full items-start gap-4 rounded-sm border border-ink/10 bg-ink/[0.03] px-4 py-3 text-left transition-colors hover:border-ink/40 hover:bg-ink/[0.05]"
       >
@@ -151,43 +163,18 @@ function FieldRow({
             <span className="font-dot text-sm tracking-[0.1em] text-ink">
               {field.label}
             </span>
-            {field.isRequired && (
+            {field.isRequired ? (
               <span className="rounded-sm bg-rouge/15 px-1.5 py-0.5 font-dot text-[9px] tracking-[0.2em] text-rouge">
                 必
               </span>
-            )}
+            ) : null}
           </span>
 
           <span className="mt-2 block min-h-[1.5rem]">
-            <AnimatePresence mode="wait" initial={false}>
-              {revealed ? (
-                <motion.span
-                  key="v"
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 4 }}
-                  transition={{ duration: 0.2 }}
-                  className="block whitespace-pre-wrap font-handwritten text-base leading-relaxed text-ink"
-                >
-                  {field.value || "（未回答）"}
-                </motion.span>
-              ) : (
-                <motion.span
-                  key="l"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="inline-flex items-center gap-2 rounded-sm bg-ink/90 px-2.5 py-1 font-dot text-[11px] tracking-[0.3em] text-paper"
-                >
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-neon animate-blink" />
-                  LOCKED · tap to reveal
-                </motion.span>
-              )}
-            </AnimatePresence>
+            <FieldReveal revealed={revealed} value={field.value} />
           </span>
         </span>
       </button>
     </li>
   );
-}
+});

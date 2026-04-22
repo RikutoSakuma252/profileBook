@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { getProfileById, prisma } from "@/lib/prisma";
 import { ProfileBook } from "./ProfileBook";
 import { AdminDeleteButton } from "./AdminDeleteButton";
 import type { ProfileFieldDto } from "@/types";
@@ -13,17 +13,10 @@ export default async function ProfileDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
-  const session = await auth();
+  const [{ id }, session] = await Promise.all([params, auth()]);
   const isAdmin = session?.user?.role === "admin";
 
-  const profile = await prisma.profile.findUnique({
-    where: { id },
-    include: {
-      fields: { orderBy: { displayOrder: "asc" } },
-    },
-  });
-
+  const profile = await getProfileById(id);
   if (!profile) notFound();
 
   const [prev, next] = await Promise.all([
@@ -59,9 +52,9 @@ export default async function ProfileDetailPage({
           ← Back to directory
         </Link>
         <div className="flex items-center gap-3">
-          {isAdmin && (
+          {isAdmin ? (
             <AdminDeleteButton id={profile.id} displayName={profile.displayName} />
-          )}
+          ) : null}
           <span className="text-paper/30">
             File No. {profile.id.slice(-6).toUpperCase()}
           </span>

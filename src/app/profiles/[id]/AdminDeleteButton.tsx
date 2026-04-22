@@ -1,35 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState, useState } from "react";
+import { deleteProfileAction, type DeleteActionState } from "./actions";
 
-export function AdminDeleteButton({ id, displayName }: { id: string; displayName: string }) {
-  const router = useRouter();
+const initialState: DeleteActionState = { status: "idle" };
+
+export function AdminDeleteButton({
+  id,
+  displayName,
+}: {
+  id: string;
+  displayName: string;
+}) {
   const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
-
-  const run = async () => {
-    setDeleting(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/admin/profiles/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        setError(json.error ?? "削除に失敗しました");
-        setDeleting(false);
-        return;
-      }
-      startTransition(() => {
-        router.push("/profiles");
-        router.refresh();
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setDeleting(false);
-    }
-  };
+  const [state, runAction, isPending] = useActionState(
+    deleteProfileAction,
+    initialState
+  );
 
   if (!confirming) {
     return (
@@ -50,21 +37,23 @@ export function AdminDeleteButton({ id, displayName }: { id: string; displayName
       </span>
       <button
         type="button"
-        onClick={run}
-        disabled={deleting}
+        onClick={() => runAction({ id })}
+        disabled={isPending}
         className="rounded-sm bg-rouge px-3 py-1 text-paper disabled:opacity-40"
       >
-        {deleting ? "削除中…" : "confirm delete"}
+        {isPending ? "削除中…" : "confirm delete"}
       </button>
       <button
         type="button"
         onClick={() => setConfirming(false)}
-        disabled={deleting}
+        disabled={isPending}
         className="rounded-sm border border-paper/30 px-3 py-1 text-paper/70 hover:border-paper hover:text-paper"
       >
         cancel
       </button>
-      {error && <span className="w-full text-rose">{error}</span>}
+      {state.status === "error" ? (
+        <span className="w-full text-rose">{state.message}</span>
+      ) : null}
     </div>
   );
 }

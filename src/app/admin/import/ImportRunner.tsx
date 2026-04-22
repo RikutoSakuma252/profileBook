@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import type { ImportResult } from "@/types";
+import { useActionState, useState } from "react";
+import { runImportAction, type ImportActionState } from "./actions";
 
 interface ConfigSummary {
   id: string;
@@ -10,44 +9,20 @@ interface ConfigSummary {
   spreadsheetId: string;
 }
 
+const initialState: ImportActionState = { status: "idle" };
+
 export function ImportRunner({ configs }: { configs: ConfigSummary[] }) {
-  const router = useRouter();
   const [selectedId, setSelectedId] = useState(configs[0]?.id ?? "");
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<ImportResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  const [state, runAction, isPending] = useActionState(
+    runImportAction,
+    initialState
+  );
 
   const disabled =
-    running ||
+    isPending ||
     !selectedId ||
     configs.find((c) => c.id === selectedId)?.spreadsheetId ===
       "PLACEHOLDER_SPREADSHEET_ID";
-
-  const handleRun = async () => {
-    if (!selectedId) return;
-    setRunning(true);
-    setResult(null);
-    setError(null);
-    try {
-      const res = await fetch("/api/admin/import", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ formConfigId: selectedId }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? "import failed");
-      } else {
-        setResult(json as ImportResult);
-        startTransition(() => router.refresh());
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRunning(false);
-    }
-  };
 
   if (configs.length === 0) {
     return (
@@ -86,32 +61,32 @@ export function ImportRunner({ configs }: { configs: ConfigSummary[] }) {
 
         <button
           type="button"
-          onClick={handleRun}
+          onClick={() => runAction({ formConfigId: selectedId })}
           disabled={disabled}
           className="rounded-sm bg-neon px-5 py-2.5 font-dot text-sm tracking-[0.2em] text-ink shadow-neon transition-opacity disabled:opacity-40"
         >
-          {running ? "取り込み中…" : "取り込み実行"}
+          {isPending ? "取り込み中…" : "取り込み実行"}
         </button>
       </div>
 
-      {result && (
+      {state.status === "success" ? (
         <div className="mt-5 rounded-sm border border-neon/40 bg-neon/5 px-4 py-3 font-typewriter text-sm text-paper">
           <span className="font-dot text-neon">OK —</span>{" "}
-          {result.imported} 件追加 / {result.skipped} 件スキップ
-          {result.errors.length > 0 && (
+          {state.result.imported} 件追加 / {state.result.skipped} 件スキップ
+          {state.result.errors.length > 0 ? (
             <>
               {" "}
-              / <span className="text-rose">{result.errors.length} 件エラー</span>
+              / <span className="text-rose">{state.result.errors.length} 件エラー</span>
             </>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
 
-      {error && (
+      {state.status === "error" ? (
         <div className="mt-5 rounded-sm border border-rouge/60 bg-rouge/10 px-4 py-3 font-typewriter text-sm text-rose">
-          取り込み失敗: {error}
+          取り込み失敗: {state.message}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

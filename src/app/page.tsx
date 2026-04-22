@@ -1,24 +1,28 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import {
+  getLatestProfileWithFields,
+  getProfileCount,
+  getRecentProfiles,
+} from "@/lib/prisma";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
+
+const ambientDeco = (
+  <div aria-hidden className="pointer-events-none absolute inset-0 -z-0">
+    <div className="absolute left-0 top-24 h-px w-full bg-gradient-to-r from-transparent via-neon/30 to-transparent" />
+    <div className="absolute left-0 top-[38%] h-px w-full bg-gradient-to-r from-transparent via-rose/40 to-transparent" />
+    <div className="absolute bottom-32 left-0 h-px w-full bg-gradient-to-r from-transparent via-paper/20 to-transparent" />
+    <div className="absolute right-[6%] top-[12%] h-40 w-40 rounded-full border border-neon/20 animate-dial" />
+    <div className="absolute right-[8%] top-[14%] h-36 w-36 rounded-full border border-neon/10" />
+    <div className="absolute left-[4%] bottom-[18%] h-24 w-24 rounded-full border border-rose/25" />
+  </div>
+);
 
 export default async function Home() {
   const [total, latestWithFields, latestRecentThree] = await Promise.all([
-    prisma.profile.count(),
-    prisma.profile.findFirst({
-      orderBy: { createdAt: "desc" },
-      include: {
-        fields: {
-          orderBy: { displayOrder: "asc" },
-          take: 4,
-        },
-      },
-    }),
-    prisma.profile.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 3,
-    }),
+    getProfileCount(),
+    getLatestProfileWithFields(),
+    getRecentProfiles(3),
   ]);
 
   const latest = latestWithFields;
@@ -30,14 +34,7 @@ export default async function Home() {
 
   return (
     <main className="relative overflow-hidden">
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-0">
-        <div className="absolute left-0 top-24 h-px w-full bg-gradient-to-r from-transparent via-neon/30 to-transparent" />
-        <div className="absolute left-0 top-[38%] h-px w-full bg-gradient-to-r from-transparent via-rose/40 to-transparent" />
-        <div className="absolute bottom-32 left-0 h-px w-full bg-gradient-to-r from-transparent via-paper/20 to-transparent" />
-        <div className="absolute right-[6%] top-[12%] h-40 w-40 rounded-full border border-neon/20 animate-dial" />
-        <div className="absolute right-[8%] top-[14%] h-36 w-36 rounded-full border border-neon/10" />
-        <div className="absolute left-[4%] bottom-[18%] h-24 w-24 rounded-full border border-rose/25" />
-      </div>
+      {ambientDeco}
 
       <section className="relative mx-auto grid max-w-6xl gap-10 px-6 pt-16 pb-24 lg:grid-cols-[1.2fr_0.8fr] lg:pt-24">
         <div className="relative">
@@ -145,7 +142,7 @@ export default async function Home() {
         <div className="dotted-divider" />
       </div>
 
-      {latestRecentThree.length > 0 && (
+      {latestRecentThree.length > 0 ? (
         <section className="mx-auto mb-16 max-w-6xl px-6">
           <div className="mb-5 flex items-baseline justify-between">
             <div>
@@ -183,11 +180,11 @@ export default async function Home() {
                       <div className="truncate font-dot text-sm tracking-[0.1em] text-paper group-hover:text-neon">
                         {p.displayName}
                       </div>
-                      {p.subtitle && (
+                      {p.subtitle ? (
                         <div className="truncate font-handwritten text-sm text-paper/60">
                           {p.subtitle}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                   <div className="mt-4 flex items-center justify-between font-typewriter text-[10px] uppercase tracking-[0.3em] text-paper/40">
@@ -199,7 +196,7 @@ export default async function Home() {
             ))}
           </ul>
         </section>
-      )}
+      ) : null}
 
       <section className="mx-auto mb-24 max-w-6xl px-6">
         <div className="flex flex-col gap-4 rounded-sm border border-paper/10 bg-ink-soft/40 p-6 md:flex-row md:items-center md:justify-between">
