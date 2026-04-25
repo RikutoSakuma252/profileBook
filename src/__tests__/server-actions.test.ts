@@ -79,7 +79,7 @@ describe("saveConfigAction", () => {
   });
 
   it("未ログインは error: forbidden を返す", async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as never);
     const result = await saveConfigAction(IDLE, {
       id: null,
       spreadsheetId: "sid",

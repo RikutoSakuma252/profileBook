@@ -49,6 +49,10 @@ export const authConfig: NextAuthConfig = {
         return loggedIn;
       }
 
+      if (pathname.startsWith("/presentations")) {
+        return loggedIn;
+      }
+
       return true;
     },
   },
