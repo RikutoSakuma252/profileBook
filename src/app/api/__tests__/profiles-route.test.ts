@@ -53,7 +53,7 @@ describe("GET /api/profiles", () => {
   });
 
   it("セッションがない場合は 401", async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as never);
     const res = await GET(makeRequest());
     expect(res.status).toBe(401);
     const body = await res.json();

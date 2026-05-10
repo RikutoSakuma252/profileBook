@@ -53,7 +53,15 @@ export default async function ProfileDetailPage({
         </Link>
         <div className="flex items-center gap-3">
           {isAdmin ? (
-            <AdminDeleteButton id={profile.id} displayName={profile.displayName} />
+            <>
+              <Link
+                href={`/admin/presentations/new?profileId=${profile.id}`}
+                className="rounded-sm border border-neon/30 px-3 py-1 font-typewriter text-[10px] uppercase tracking-[0.25em] text-neon/70 transition-colors hover:border-neon hover:text-neon"
+              >
+                収録HTML生成
+              </Link>
+              <AdminDeleteButton id={profile.id} displayName={profile.displayName} />
+            </>
           ) : null}
           <span className="text-paper/30">
             File No. {profile.id.slice(-6).toUpperCase()}
